@@ -268,7 +268,7 @@ class GcmSendAsyncTask extends AsyncTask<Void, Void, String> {
         try {
             String email = "foo@bar.com"; //get from UI
             msg = ev.getText().toString();
-            msgService.buzz(email, msg);
+            msgService.buzz(email, msg).execute();
             Logger.getLogger("AsyncTask").log(Level.INFO, "request sent!");
         } catch (IOException ex) {
             ex.printStackTrace();
