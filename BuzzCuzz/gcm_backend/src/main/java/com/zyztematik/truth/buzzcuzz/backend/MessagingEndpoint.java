@@ -11,9 +11,11 @@ import com.google.android.gcm.server.Message;
 import com.google.android.gcm.server.Result;
 import com.google.android.gcm.server.Sender;
 import com.google.api.server.spi.config.Api;
+import com.google.api.server.spi.config.ApiMethod;
 import com.google.api.server.spi.config.ApiNamespace;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -41,11 +43,35 @@ public class MessagingEndpoint {
     private static final String API_KEY = System.getProperty("gcm.api.key");
 
     /**
+     * Register a device to the backend
+     *
+     * @param email The email we wish to buzz.
+     * @param message The message to send together with the buzz.
+     */
+    @ApiMethod(name = "buzz")
+    public void buzzDevice(@Named("email") String email, @Named("message") String message) {
+        log.info("Buzzing devices API called!");
+        List<RegistrationRecord> records = getDevices(email);
+        for (RegistrationRecord r : records) {
+            try {
+                log.warning("Sending message to : " + email + " msg: " + message);
+                sendMessage(r.getRegId(), message);
+            } catch (IOException ex) {
+                log.warning("Error buzzing : " + email + " error: " + ex.getMessage());
+            }
+        }
+    }
+
+    /**
      * Send to the first 10 devices (You can modify this to send to any number of devices or a specific device)
      *
      * @param message The message to send
      */
-    public void sendMessage(@Named("message") String message) throws IOException {
+    public void sendMessage(@Named("regId") String regId, @Named("message") String message) throws IOException {
+        if (regId == null || regId.trim().length() == 0) {
+            log.warning("Not sending message, missing registration ID.");
+            return;
+        }
         if (message == null || message.trim().length() == 0) {
             log.warning("Not sending message because it is empty");
             return;
@@ -56,28 +82,33 @@ public class MessagingEndpoint {
         }
         Sender sender = new Sender(API_KEY);
         Message msg = new Message.Builder().addData("message", message).build();
-        List<RegistrationRecord> records = ofy().load().type(RegistrationRecord.class).limit(10).list();
-        for (RegistrationRecord record : records) {
-            Result result = sender.send(msg, record.getRegId(), 5);
-            if (result.getMessageId() != null) {
-                log.info("Message sent to " + record.getRegId());
-                String canonicalRegId = result.getCanonicalRegistrationId();
-                if (canonicalRegId != null) {
-                    // if the regId changed, we have to update the datastore
-                    log.info("Registration Id changed for " + record.getRegId() + " updating to " + canonicalRegId);
-                    record.setRegId(canonicalRegId);
-                    ofy().save().entity(record).now();
-                }
+
+        Result result = sender.send(msg, regId, 5);
+        if (result.getMessageId() != null) {
+            log.info("Message sent to " + regId);
+            String canonicalRegId = result.getCanonicalRegistrationId();
+            if (canonicalRegId != null) {
+                // if the regId changed, we have to update the datastore
+                log.info("Registration Id changed for " + regId + " updating to " + canonicalRegId);
+                RegistrationRecord record = ofy().load().type(RegistrationRecord.class).id(regId).now();
+                record.setRegId(canonicalRegId);
+                ofy().save().entity(record).now();
+            }
+        } else {
+            String error = result.getErrorCodeName();
+            if (error.equals(Constants.ERROR_NOT_REGISTERED)) {
+                log.warning("Registration Id " + regId + " no longer registered with GCM, removing from datastore");
+                // if the device is no longer registered with Gcm, remove it from the datastore
+                RegistrationRecord record = ofy().load().type(RegistrationRecord.class).id(regId).now();
+                ofy().delete().entity(record).now();
             } else {
-                String error = result.getErrorCodeName();
-                if (error.equals(Constants.ERROR_NOT_REGISTERED)) {
-                    log.warning("Registration Id " + record.getRegId() + " no longer registered with GCM, removing from datastore");
-                    // if the device is no longer registered with Gcm, remove it from the datastore
-                    ofy().delete().entity(record).now();
-                } else {
-                    log.warning("Error when sending message : " + error);
-                }
+                log.warning("Error when sending message : " + error);
             }
         }
+    }
+
+    public List<RegistrationRecord> getDevices(@Named("email") String email) {
+        List<RegistrationRecord> records = ofy().load().type(RegistrationRecord.class).filter("email ==", email).list();
+        return records;
     }
 }

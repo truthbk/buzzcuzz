@@ -17,6 +17,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.support.v4.widget.DrawerLayout;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,6 +27,7 @@ import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.extensions.android.json.AndroidJsonFactory;
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest;
 import com.google.api.client.googleapis.services.GoogleClientRequestInitializer;
+import com.zyztematik.truth.buzzcuzz.backend.messaging.Messaging;
 import com.zyztematik.truth.buzzcuzz.backend.registration.Registration;
 
 import java.io.IOException;
@@ -44,6 +47,7 @@ public class BuzzMainActivity extends ActionBarActivity
      * Used to store the last screen title. For use in {@link #restoreActionBar()}.
      */
     private CharSequence mTitle;
+    private GoogleCloudMessaging gcm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,9 +83,6 @@ public class BuzzMainActivity extends ActionBarActivity
                 break;
             case 2:
                 mTitle = getString(R.string.title_section2);
-                break;
-            case 3:
-                mTitle = getString(R.string.title_section3);
                 break;
         }
     }
@@ -120,6 +121,13 @@ public class BuzzMainActivity extends ActionBarActivity
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    public void onSendBuzz(View view) {
+        //Send Message
+        EditText ev = (EditText)findViewById(R.id.BuzzText);
+        ListView lv = (ListView)findViewById(R.id.contactListView);
+        new GcmSendAsyncTask(this, ev, lv).execute();
     }
 
     /**
@@ -201,13 +209,14 @@ class GcmRegistrationAsyncTask extends AsyncTask<Void, Void, String> {
                 gcm = GoogleCloudMessaging.getInstance(context);
             }
             String regId = gcm.register(SENDER_ID);
+            String email = "foo@bar.com";
             msg = "Device registered, registration ID=" + regId;
 
             // You should send the registration ID to your server over HTTP,
             // so it can use GCM/HTTP or CCS to send messages to your app.
             // The request to your server should be authenticated if your app
             // is using accounts.
-            regService.register(regId).execute();
+            regService.register(regId, email).execute();
 
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -220,6 +229,57 @@ class GcmRegistrationAsyncTask extends AsyncTask<Void, Void, String> {
     protected void onPostExecute(String msg) {
         Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
         Logger.getLogger("REGISTRATION").log(Level.INFO, msg);
+    }
+}
+
+class GcmSendAsyncTask extends AsyncTask<Void, Void, String> {
+    private static Messaging msgService = null;
+    private Context context;
+    private EditText ev;
+    private ListView lv;
+
+    public GcmSendAsyncTask(Context context, EditText ev, ListView lv) {
+        this.context = context;
+        this.ev = ev;
+        this.lv = lv;
+    }
+
+    @Override
+    protected String doInBackground(Void... params) {
+        if (msgService == null) {
+            Messaging.Builder builder = new Messaging.Builder(AndroidHttp.newCompatibleTransport(),
+                    new AndroidJsonFactory(), null)
+                    // Need setRootUrl and setGoogleClientRequestInitializer only for local testing,
+                    // otherwise they can be skipped
+                    .setRootUrl("http://10.0.0.230:8080/_ah/api/")
+                    .setGoogleClientRequestInitializer(new GoogleClientRequestInitializer() {
+                        @Override
+                        public void initialize(AbstractGoogleClientRequest<?> abstractGoogleClientRequest)
+                                throws IOException {
+                            abstractGoogleClientRequest.setDisableGZipContent(true);
+                        }
+                    });
+            // end of optional local run code
+
+            msgService = builder.build();
+        }
+
+        String msg = "";
+        try {
+            String email = "foo@bar.com"; //get from UI
+            msg = ev.getText().toString();
+            msgService.buzz(email, msg);
+            Logger.getLogger("AsyncTask").log(Level.INFO, "request sent!");
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            msg = "Error: " + ex.getMessage();
+        }
+        return msg;
+    }
+
+    @Override
+    protected void onPostExecute(String msg) {
+        Logger.getLogger("MESSAGE SENT").log(Level.INFO, msg);
     }
 }
 
