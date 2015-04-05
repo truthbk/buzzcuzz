@@ -40,7 +40,10 @@
                 android:layout_height="wrap_content"
                 android:id="@+id/addContactBtn"
                 android:layout_above="@+id/BuzzText"
-                android:layout_centerHorizontal="true" />
+                android:layout_centerHorizontal="true"
+                android:background="@null"
+                android:src="@drawable/add_contact"
+                android:onClick="onAddBuzzee" />
 
             <ListView
                 android:layout_width="wrap_content"

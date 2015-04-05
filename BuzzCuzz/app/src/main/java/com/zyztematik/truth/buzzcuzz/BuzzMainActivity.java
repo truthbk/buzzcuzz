@@ -1,25 +1,23 @@
 package com.zyztematik.truth.buzzcuzz;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.AsyncTask;
+import android.provider.ContactsContract;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.ActionBar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.content.Context;
-import android.os.Build;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.support.v4.widget.DrawerLayout;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.gcm.GoogleCloudMessaging;
@@ -79,10 +77,16 @@ public class BuzzMainActivity extends ActionBarActivity
     public void onSectionAttached(int number) {
         switch (number) {
             case 1:
-                mTitle = getString(R.string.title_section1);
+                mTitle = getString(R.string.drawer_section1);
                 break;
             case 2:
-                mTitle = getString(R.string.title_section2);
+                mTitle = getString(R.string.drawer_section2);
+                break;
+            case 3:
+                mTitle = getString(R.string.drawer_section3);
+                break;
+            case 4:
+                mTitle = getString(R.string.drawer_section4);
                 break;
         }
     }
@@ -128,6 +132,13 @@ public class BuzzMainActivity extends ActionBarActivity
         EditText ev = (EditText)findViewById(R.id.BuzzText);
         ListView lv = (ListView)findViewById(R.id.contactListView);
         new GcmSendAsyncTask(this, ev, lv).execute();
+    }
+
+    public void onAddBuzzee(View view) {
+        //Open Add Buzzee Activity
+        Intent intent = new Intent(this, AddBuzzeeActivity.class);
+        startActivity(intent);
+
     }
 
     /**
